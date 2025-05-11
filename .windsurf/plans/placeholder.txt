@@ -1,0 +1,1 @@
+This is a placeholder file to ensure the .windsurf/plans directory is created. This can be replaced by the actual project plan.
