@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const OpenAI = require('openai'); // Import OpenAI
+const { google } = require('googleapis'); // Added for Google Sheets API
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -32,7 +33,46 @@ if (supabase && typeof supabase.from !== 'function') {
         } catch (e) {
             console.error('Exception during Supabase connection test:', e);
         }
+
+        // Test Google Sheets connection on startup
+        await testGoogleSheetsConnection();
     })();
+}
+
+// Test function for Google Sheets API
+async function testGoogleSheetsConnection() {
+    try {
+        const auth = new google.auth.GoogleAuth({
+            keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+
+        const authClient = await auth.getClient();
+        const sheets = google.sheets({ version: 'v4', auth: authClient });
+
+        const spreadsheetId = '1z77gwVZrfifQxBDZJTFtrtx49eV3iKjy--IvGhqJzmI';
+        const range = 'Sheet1!A2:B16';
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range,
+        });
+
+        const rows = response.data.values;
+        if (rows && rows.length) {
+            console.log('Successfully connected to Google Sheets and fetched data:');
+            console.log(`Sample data from ${range}:`, rows[0]); // Log the first row of the fetched range
+        } else {
+            console.log('Successfully connected to Google Sheets, but no data found in the specified range or sheet is empty.');
+        }
+    } catch (error) {
+        console.error('Error connecting to Google Sheets or fetching data:');
+        console.error('Error Message:', error.message);
+        if (error.details) console.error('Error Details:', error.details);
+        if (error.response && error.response.data && error.response.data.error) {
+            console.error('Google API Error:', JSON.stringify(error.response.data.error, null, 2));
+        }
+    }
 }
 
 // OpenRouter (OpenAI compatible) Configuration
