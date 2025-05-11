@@ -52,30 +52,80 @@ const openai = new OpenAI({
 app.use(cors());
 app.use(express.json());
 
+// Function to get conversation history
+async function getConversationHistory(sessionId, limit = 3) {
+    if (!sessionId) {
+        return [];
+    }
+
+    const { data, error } = await supabase
+        .from('conversations')
+        .select('user_query, ai_response')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (error) {
+        console.error('Error fetching conversation history:', error);
+        return [];
+    }
+
+    if (!data || data.length === 0) {
+        return [];
+    }
+
+    // Format for OpenRouter and reverse to maintain chronological order for the model
+    const historyMessages = [];
+    // Data is currently newest-to-oldest, so iterate backwards to push oldest-first
+    for (let i = data.length - 1; i >= 0; i--) {
+        const record = data[i];
+        if (record.user_query) {
+            historyMessages.push({ role: 'user', content: record.user_query });
+        }
+        if (record.ai_response) {
+            historyMessages.push({ role: 'assistant', content: record.ai_response });
+        }
+    }
+    return historyMessages;
+}
+
 // Routes
 app.get('/', (req, res) => {
     res.send('AI Chatbot Backend is running!');
 });
 
 app.post('/chat', async (req, res) => {
-    const { message, sessionId } = req.body;
+    const { message, sessionId } = req.body; // Extract sessionId
 
     if (!message) {
         return res.status(400).json({ error: 'Message is required' });
     }
 
-    console.log(`Received message: "${message}" (Session ID: ${sessionId || 'N/A'})`);
+    // Log the incoming message and sessionId
+    if (sessionId) {
+        console.log(`Received message: "${message}" (Session ID: ${sessionId})`);
+    } else {
+        console.log(`Received message: "${message}" (No Session ID provided)`);
+    }
 
     let aiResponse = 'Sorry, I encountered an error.'; // Default error response
+    let openRouterModel = 'google/gemini-flash-1.5'; // Default model
 
     try {
+        // Fetch conversation history if sessionId is present
+        const historicalMessages = await getConversationHistory(sessionId);
+
+        // Prepare messages for OpenRouter
+        const messagesToOpenRouter = [
+            { role: 'system', content: 'You are a helpful AI assistant.' }, // Optional system prompt
+            ...historicalMessages, // Prepend history
+            { role: 'user', content: message },
+        ];
+
         // Task 1.3 - Integrate NLU (Gemini-2.5-flash via OpenRouter)
         const completion = await openai.chat.completions.create({
-            model: 'google/gemini-flash-1.5', // Corrected model name for Gemini Flash 1.5 on OpenRouter
-            messages: [
-                { role: 'system', content: 'You are a helpful AI assistant.' }, // Optional system prompt
-                { role: 'user', content: message },
-            ],
+            model: openRouterModel, 
+            messages: messagesToOpenRouter,
         });
 
         if (completion.choices && completion.choices.length > 0 && completion.choices[0].message) {
@@ -98,27 +148,45 @@ app.post('/chat', async (req, res) => {
                 {
                     user_query: message,
                     ai_response: aiResponse,
-                    session_id: sessionId || null,
-                    platform: 'website'
+                    session_id: sessionId || null, // Use extracted sessionId here
+                    platform: 'website',
+                    model_used: openRouterModel // Log the model used
                 }
             ])
             .select();
 
         if (logError) {
             console.error('Supabase logError object (raw):', logError);
-            console.error('Supabase logError details (JSON.stringify):', JSON.stringify(logError, null, 2));
-            throw logError; 
+            console.error(`Error logging conversation to Supabase: ${logError.message}`);
+            if (logError.details) console.error('Supabase logError details:', logError.details);
+            if (logError.hint) console.error('Supabase logError hint:', logError.hint);
+        } else {
+            console.log('Conversation logged to Supabase:', logData);
         }
-        console.log('Conversation logged to Supabase:', logData);
-    } catch (error) { 
-        console.error('Full error object caught during Supabase logging (raw):', error);
-        console.error('Full error object caught during Supabase logging (JSON.stringify):', JSON.stringify(error, null, 2));
-        if (error && error.message) console.error('Caught error message:', error.message);
-        if (error && error.details) console.error('Caught error details:', error.details);
-        if (error && error.hint) console.error('Caught error hint:', error.hint);
+
+    } catch (error) {
+        // Enhanced error logging for server-side debugging
+        console.error('-------------------- ERROR IN /CHAT ENDPOINT --------------------');
+        console.error('Timestamp:', new Date().toISOString());
+        console.error('Error Message:', error.message);
+        if (error.stack) {
+            console.error('Stack Trace:', error.stack);
+        }
+        if (error.response && error.response.data) {
+            console.error('OpenRouter Error Response Data:', JSON.stringify(error.response.data, null, 2));
+        }
+        if (error.code) console.error('Error Code:', error.code);
+        if (error.hint) console.error('Error Hint:', error.hint); // Typically from Supabase errors
+        console.error('-------------------------------------------------------------------');
+
+        // Set a user-friendly fallback message
+        aiResponse = "I'm currently experiencing some technical difficulties and can't process your request. Please try again in a little while.";
+        
+        // We could attempt to log the failure to Supabase here if desired, including the original user_query and the fallback aiResponse
+        // For now, the existing log call will log this fallback aiResponse if it's reached after an OpenRouter failure.
     }
 
-    res.json({ response: aiResponse, sessionId: sessionId });
+    res.json({ response: aiResponse, sessionId: sessionId }); // Return sessionId in response
 });
 
 app.listen(port, () => {
