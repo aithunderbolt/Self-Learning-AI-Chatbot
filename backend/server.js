@@ -16,6 +16,24 @@ if (!supabaseUrl || !supabaseKey) {
     process.exit(1);
 }
 const supabase = createClient(supabaseUrl, supabaseKey);
+console.log('Supabase client initialized:', supabase ? 'Client object exists' : 'Client is null/undefined');
+if (supabase && typeof supabase.from !== 'function') {
+    console.error('Supabase client does not have a "from" method. Initialization likely failed.');
+} else if (supabase) {
+    // Test basic Supabase connection
+    (async () => {
+        try {
+            const { data, error } = await supabase.from('conversations').select('id').limit(1);
+            if (error) {
+                console.error('Error testing Supabase connection (select):', JSON.stringify(error, null, 2));
+            } else {
+                console.log('Successfully connected to Supabase and fetched data (test select):', data);
+            }
+        } catch (e) {
+            console.error('Exception during Supabase connection test:', e);
+        }
+    })();
+}
 
 // OpenRouter (OpenAI compatible) Configuration
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
@@ -53,7 +71,7 @@ app.post('/chat', async (req, res) => {
     try {
         // Task 1.3 - Integrate NLU (Gemini-2.5-flash via OpenRouter)
         const completion = await openai.chat.completions.create({
-            model: 'google/gemini-2.5-flash-preview', // Corrected model name for Gemini Flash 1.5 on OpenRouter
+            model: 'google/gemini-flash-1.5', // Corrected model name for Gemini Flash 1.5 on OpenRouter
             messages: [
                 { role: 'system', content: 'You are a helpful AI assistant.' }, // Optional system prompt
                 { role: 'user', content: message },
@@ -72,18 +90,32 @@ app.post('/chat', async (req, res) => {
         // Keep the default error response
     }
 
-    // Log to Supabase (example - will be refined in Task 1.4)
+    // Log to Supabase
     try {
         const { data: logData, error: logError } = await supabase
             .from('conversations')
             .insert([
-                { user_query: message, ai_response: aiResponse, session_id: sessionId, platform: 'website' }
+                {
+                    user_query: message,
+                    ai_response: aiResponse,
+                    session_id: sessionId || null,
+                    platform: 'website'
+                }
             ])
             .select();
-        if (logError) throw logError;
+
+        if (logError) {
+            console.error('Supabase logError object (raw):', logError);
+            console.error('Supabase logError details (JSON.stringify):', JSON.stringify(logError, null, 2));
+            throw logError; 
+        }
         console.log('Conversation logged to Supabase:', logData);
-    } catch (error) {
-        console.error('Error logging to Supabase:', error.message);
+    } catch (error) { 
+        console.error('Full error object caught during Supabase logging (raw):', error);
+        console.error('Full error object caught during Supabase logging (JSON.stringify):', JSON.stringify(error, null, 2));
+        if (error && error.message) console.error('Caught error message:', error.message);
+        if (error && error.details) console.error('Caught error details:', error.details);
+        if (error && error.hint) console.error('Caught error hint:', error.hint);
     }
 
     res.json({ response: aiResponse, sessionId: sessionId });
