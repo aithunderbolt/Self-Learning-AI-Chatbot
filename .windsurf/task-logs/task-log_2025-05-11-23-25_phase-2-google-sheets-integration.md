@@ -21,6 +21,7 @@ TASKS:
     - If no match, proceed to NLU as before. (DONE)
     - Updated Supabase logging to indicate if response came from 'FAQ' or NLU model. (DONE)
 - [ ] Task 2.5: Basic Caching Strategy
+    - Currently loads data only on server startup.
 
 IMPLEMENTATION:
 - User created a GCP project, enabled Google Sheets API, created a service account, and downloaded the JSON key file.
@@ -40,5 +41,7 @@ IMPLEMENTATION:
 - Updated conversation logging in Supabase to set `model_used` to 'google_sheet_faq' when an answer comes from the sheet.
 
 COMPLETED:
+- Tasks 2.1, 2.2, 2.3, 2.4 completed as of 2025-05-12.
 PERFORMANCE:
-NEXT_STEPS: Restart server. Test the `/chat` endpoint with questions that exactly match those in Sheet1!A2:A16 (case-insensitive) and verify the correct answers are returned directly. Also test with questions *not* in the sheet to ensure fallback to OpenRouter NLU still works.
+- FAQ lookup and NLU fallback tested successfully by USER.
+NEXT_STEPS: Decide whether to implement Task 2.5 (Caching/Refresh Strategy for Google Sheet data) or move to Phase 3 (Website Chat Widget).
