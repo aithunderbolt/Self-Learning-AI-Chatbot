@@ -45,3 +45,32 @@ COMPLETED:
 PERFORMANCE:
 - FAQ lookup and NLU fallback tested successfully by USER.
 NEXT_STEPS: Decide whether to implement Task 2.5 (Caching/Refresh Strategy for Google Sheet data) or move to Phase 3 (Website Chat Widget).
+
+---
+
+GOAL: Implement Phase 3: Website Chat Widget
+
+TASKS:
+- [X] Task 3.1: Frontend Setup
+    - Created `frontend` directory with initial HTML, CSS, and JS files.
+- [ ] Task 3.2: Basic Chat UI and Client-Side Logic
+    - Implemented basic client-side JS in `script.js`: DOM references, session ID handling (`sessionStorage`, `crypto.randomUUID`), event listeners (click, Enter key), `addMessageToUI` function, and initial `sendMessage` stub.
+- [X] Task 3.3: Backend Communication
+    - Handle backend response (display AI message). (DONE)
+    - Implement basic loading indicator and error handling. (DONE)
+- [ ] Task 3.4: UI Polish and Responsiveness
+    - Implement responsive design for chat widget.
+- [ ] Task 3.5: Embeddable Snippet Generation (Later)
+
+IMPLEMENTATION:
+- Created `frontend` directory with initial HTML, CSS, and JS files.
+- Implemented client-side JS in `script.js`: DOM references, session ID handling, event listeners, UI message display.
+- Added Fetch API call to `http://localhost:3001/chat` in `sendMessage`, sending message and sessionId, handling response, and basic loading/error states.
+- Added basic CSS for loading and error messages.
+- Started Python HTTP server in `frontend` directory for testing.
+
+COMPLETED:
+- Task 3.1 completed as of 2025-05-13.
+- Task 3.3 completed as of 2025-05-13.
+PERFORMANCE:
+NEXT_STEPS: Test the chat widget functionality via the browser at http://localhost:8000. Verify user message display, backend communication (FAQ hits/misses, NLU fallback), loading state, and error handling.

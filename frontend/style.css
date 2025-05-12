@@ -1,0 +1,96 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f4f4f4;
+}
+
+#chat-widget {
+    width: 350px;
+    height: 500px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden; /* Prevents content spill */
+}
+
+#chat-header {
+    background-color: #007bff;
+    color: white;
+    padding: 10px;
+    font-weight: bold;
+    text-align: center;
+    border-bottom: 1px solid #ccc;
+}
+
+#chat-messages {
+    flex-grow: 1;
+    overflow-y: auto; /* Allows scrolling */
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between messages */
+}
+
+.message {
+    padding: 8px 12px;
+    border-radius: 15px;
+    max-width: 70%;
+    word-wrap: break-word;
+}
+
+.user-message {
+    background-color: #dcf8c6;
+    align-self: flex-end;
+    border-bottom-right-radius: 5px;
+}
+
+.ai-message {
+    background-color: #eee;
+    align-self: flex-start;
+    border-bottom-left-radius: 5px;
+}
+
+.ai-message.loading, .ai-message.error {
+    font-style: italic;
+    color: #666;
+    background-color: #f0f0f0; /* Slightly different background */
+}
+
+.ai-message.error {
+    color: #d9534f; /* Bootstrap danger color */
+    background-color: #f2dede; /* Bootstrap danger background */
+    border: 1px solid #ebccd1; /* Bootstrap danger border */
+}
+
+#chat-input-area {
+    display: flex;
+    border-top: 1px solid #ccc;
+    padding: 10px;
+}
+
+#chat-input {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-right: 5px;
+}
+
+#send-button {
+    padding: 8px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#send-button:hover {
+    background-color: #0056b3;
+}
