@@ -11,6 +11,7 @@ const settingsDisplay = document.getElementById('settings-display');
 const settingsForm = document.getElementById('settings-form'); 
 const googleSheetIdInput = document.getElementById('googleSheetId'); 
 const googleSheetRangeInput = document.getElementById('googleSheetRange'); 
+const openRouterApiKeyInput = document.getElementById('openRouterApiKey'); 
 const saveButton = document.getElementById('save-settings-button'); 
 const saveStatus = document.getElementById('save-status'); 
 
@@ -58,6 +59,7 @@ async function fetchAndDisplaySettings() {
         // --- Populate form fields with current values --- 
         googleSheetIdInput.value = settings.googleSheetId || '';
         googleSheetRangeInput.value = settings.googleSheetRange || '';
+        openRouterApiKeyInput.value = ''; // Always clear on load, user enters new key if they want to change
 
     } catch (error) {
         console.error('Failed to fetch settings:', error);
@@ -101,7 +103,8 @@ settingsForm.addEventListener('submit', async (event) => {
 
     const newSettings = {
         googleSheetId: googleSheetIdInput.value.trim(),
-        googleSheetRange: googleSheetRangeInput.value.trim()
+        googleSheetRange: googleSheetRangeInput.value.trim(),
+        openRouterApiKey: openRouterApiKeyInput.value.trim() // Add new key
     };
 
     try {

@@ -163,10 +163,13 @@ const envFilePath = path.resolve(__dirname, '.env');
 
 app.post('/admin/settings', checkAdminToken, async (req, res) => {
     console.log('Received request to update admin settings.');
-    const { googleSheetId, googleSheetRange } = req.body;
+    const { googleSheetId, googleSheetRange, openRouterApiKey } = req.body;
 
-    if (typeof googleSheetId !== 'string' || typeof googleSheetRange !== 'string') {
-        return res.status(400).json({ error: 'Invalid input: Sheet ID and Range must be strings.' });
+    if (typeof googleSheetId !== 'string' || 
+        typeof googleSheetRange !== 'string' || 
+        (openRouterApiKey !== undefined && typeof openRouterApiKey !== 'string') // Allow undefined or string
+    ) {
+        return res.status(400).json({ error: 'Invalid input types.' });
     }
 
     try {
@@ -185,6 +188,7 @@ app.post('/admin/settings', checkAdminToken, async (req, res) => {
         const updatedLines = [];
         let idUpdated = false;
         let rangeUpdated = false;
+        let openRouterUpdated = false;
 
         lines.forEach(line => {
             const trimmedLine = line.trim();
@@ -194,8 +198,11 @@ app.post('/admin/settings', checkAdminToken, async (req, res) => {
             } else if (trimmedLine.startsWith('GOOGLE_SHEET_RANGE=')) {
                 updatedLines.push(`GOOGLE_SHEET_RANGE=${googleSheetRange}`);
                 rangeUpdated = true;
+            } else if (trimmedLine.startsWith('OPENROUTER_API_KEY=') && openRouterApiKey && openRouterApiKey.trim() !== '') {
+                updatedLines.push(`OPENROUTER_API_KEY=${openRouterApiKey.trim()}`);
+                openRouterUpdated = true;
             } else {
-                updatedLines.push(line); // Keep other lines
+                updatedLines.push(line); // Keep other lines, including old OPENROUTER_API_KEY if not updated
             }
         });
 
@@ -205,6 +212,10 @@ app.post('/admin/settings', checkAdminToken, async (req, res) => {
         }
         if (!rangeUpdated) {
             updatedLines.push(`GOOGLE_SHEET_RANGE=${googleSheetRange}`);
+        }
+        if (!openRouterUpdated && openRouterApiKey && openRouterApiKey.trim() !== '') {
+            // Add new OPENROUTER_API_KEY only if it was provided and not already updated (e.g., if the line didn't exist)
+            updatedLines.push(`OPENROUTER_API_KEY=${openRouterApiKey.trim()}`);
         }
 
         // Ensure no leading/trailing empty lines issues, and join
