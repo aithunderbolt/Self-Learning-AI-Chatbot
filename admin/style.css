@@ -64,3 +64,42 @@ button:hover {
     display: inline-block;
     width: 150px; /* Adjust as needed */
 }
+
+/* Add styles for the settings form */
+#settings-form {
+    margin-top: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input[type="text"] {
+    width: calc(100% - 22px); /* Adjust width considering padding and border */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+#save-settings-button {
+    background-color: #28a745; /* Green */
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+    margin-right: 10px; /* Add some space before logout */
+}
+
+#save-settings-button:hover {
+    background-color: #218838;
+}

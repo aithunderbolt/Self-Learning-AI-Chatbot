@@ -4,6 +4,10 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const OpenAI = require('openai'); // Import OpenAI
 const { getSheetData } = require('./googleSheetsService'); // Import the service
+const { google } = require('googleapis');
+const googleSheetsService = require('./googleSheetsService'); // Import the service
+const fs = require('fs').promises; // Use promises version of fs
+const path = require('path'); // To construct file paths reliably
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -124,6 +128,98 @@ async function getConversationHistory(sessionId, limit = 3) {
     }
     return historyMessages;
 }
+
+// Middleware to check Admin Token
+const checkAdminToken = (req, res, next) => {
+    const token = req.headers['x-admin-token'];
+    if (!token || token !== process.env.ADMIN_API_TOKEN) {
+        console.warn('Unauthorized attempt to access admin endpoint.');
+        return res.status(403).json({ error: 'Forbidden: Invalid or missing admin token.' });
+    }
+    next(); // Token is valid, proceed
+};
+
+// Admin Settings Endpoint
+app.get('/admin/settings', checkAdminToken, (req, res) => {
+    console.log('Received request for admin settings.');
+    try {
+        const settings = {
+            googleSheetId: process.env.GOOGLE_SHEET_ID || null,
+            googleSheetRange: process.env.GOOGLE_SHEET_RANGE || null,
+            googleCredentialsSet: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+            openRouterConfigured: !!process.env.OPENROUTER_API_KEY,
+            supabaseConfigured: !!process.env.SUPABASE_URL && !!process.env.SUPABASE_KEY,
+            // Add other non-sensitive settings here as needed
+        };
+        res.json(settings);
+    } catch (error) {
+        console.error('Error fetching admin settings:', error);
+        res.status(500).json({ error: 'Internal server error while fetching settings.' });
+    }
+});
+
+// --- Admin Update Settings Endpoint --- 
+const envFilePath = path.resolve(__dirname, '.env');
+
+app.post('/admin/settings', checkAdminToken, async (req, res) => {
+    console.log('Received request to update admin settings.');
+    const { googleSheetId, googleSheetRange } = req.body;
+
+    if (typeof googleSheetId !== 'string' || typeof googleSheetRange !== 'string') {
+        return res.status(400).json({ error: 'Invalid input: Sheet ID and Range must be strings.' });
+    }
+
+    try {
+        let envContent = '';
+        try {
+            envContent = await fs.readFile(envFilePath, 'utf8');
+        } catch (readError) {
+            // If .env doesn't exist, we'll create it (or proceed with empty content)
+            if (readError.code !== 'ENOENT') {
+                throw readError; // Rethrow other read errors
+            }
+            console.log('.env file not found, will create/populate it.');
+        }
+
+        const lines = envContent.split('\n');
+        const updatedLines = [];
+        let idUpdated = false;
+        let rangeUpdated = false;
+
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('GOOGLE_SHEET_ID=')) {
+                updatedLines.push(`GOOGLE_SHEET_ID=${googleSheetId}`);
+                idUpdated = true;
+            } else if (trimmedLine.startsWith('GOOGLE_SHEET_RANGE=')) {
+                updatedLines.push(`GOOGLE_SHEET_RANGE=${googleSheetRange}`);
+                rangeUpdated = true;
+            } else {
+                updatedLines.push(line); // Keep other lines
+            }
+        });
+
+        // Add new lines if they weren't found/updated
+        if (!idUpdated) {
+            updatedLines.push(`GOOGLE_SHEET_ID=${googleSheetId}`);
+        }
+        if (!rangeUpdated) {
+            updatedLines.push(`GOOGLE_SHEET_RANGE=${googleSheetRange}`);
+        }
+
+        // Ensure no leading/trailing empty lines issues, and join
+        const newEnvContent = updatedLines.filter(line => line.trim() !== '' || updatedLines.indexOf(line) !== updatedLines.length -1 ).join('\n');
+
+        await fs.writeFile(envFilePath, newEnvContent, 'utf8');
+
+        console.log('.env file updated successfully.');
+        res.json({ message: 'Settings updated successfully! IMPORTANT: Please restart the backend server for changes to take effect.' });
+
+    } catch (error) {
+        console.error('Error updating .env file:', error);
+        res.status(500).json({ error: 'Internal server error while updating settings.' });
+    }
+});
 
 // Routes
 app.get('/', (req, res) => {
