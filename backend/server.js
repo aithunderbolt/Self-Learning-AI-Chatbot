@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const OpenAI = require('openai'); // Import OpenAI
-const { google } = require('googleapis'); // Added for Google Sheets API
+const { getSheetData } = require('./googleSheetsService'); // Import the service
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -21,7 +21,7 @@ console.log('Supabase client initialized:', supabase ? 'Client object exists' : 
 if (supabase && typeof supabase.from !== 'function') {
     console.error('Supabase client does not have a "from" method. Initialization likely failed.');
 } else if (supabase) {
-    // Test basic Supabase connection
+    // Test basic Supabase connection and load initial data
     (async () => {
         try {
             const { data, error } = await supabase.from('conversations').select('id').limit(1);
@@ -34,44 +34,40 @@ if (supabase && typeof supabase.from !== 'function') {
             console.error('Exception during Supabase connection test:', e);
         }
 
-        // Test Google Sheets connection on startup
-        await testGoogleSheetsConnection();
+        // Load FAQ data from Google Sheets on startup
+        await loadFaqData();
     })();
 }
 
-// Test function for Google Sheets API
-async function testGoogleSheetsConnection() {
+// In-memory storage for FAQ data from Google Sheets
+let faqDataMap = new Map();
+
+// Function to load FAQ data from Google Sheets
+async function loadFaqData() {
+    const spreadsheetId = '1z77gwVZrfifQxBDZJTFtrtx49eV3iKjy--IvGhqJzmI'; // Keep consistent
+    const range = 'Sheet1!A2:B16'; // The FAQ range
+    console.log(`Attempting to load FAQ data from Google Sheet: ${spreadsheetId}, Range: ${range}`);
     try {
-        const auth = new google.auth.GoogleAuth({
-            keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-        });
-
-        const authClient = await auth.getClient();
-        const sheets = google.sheets({ version: 'v4', auth: authClient });
-
-        const spreadsheetId = '1z77gwVZrfifQxBDZJTFtrtx49eV3iKjy--IvGhqJzmI';
-        const range = 'Sheet1!A2:B16';
-
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId,
-            range,
-        });
-
-        const rows = response.data.values;
-        if (rows && rows.length) {
-            console.log('Successfully connected to Google Sheets and fetched data:');
-            console.log(`Sample data from ${range}:`, rows[0]); // Log the first row of the fetched range
+        const rows = await getSheetData(spreadsheetId, range);
+        if (rows && rows.length > 0) {
+            const tempMap = new Map();
+            rows.forEach(row => {
+                // Assuming Column A is Question, Column B is Answer
+                if (row[0] && row[1]) { // Ensure both question and answer exist
+                    const question = row[0].trim().toLowerCase(); // Normalize question
+                    const answer = row[1].trim();
+                    tempMap.set(question, answer);
+                }
+            });
+            faqDataMap = tempMap; // Replace old map with new data
+            console.log(`Successfully loaded ${faqDataMap.size} FAQ entries into memory.`);
         } else {
-            console.log('Successfully connected to Google Sheets, but no data found in the specified range or sheet is empty.');
+            console.log('No FAQ data loaded from Google Sheets (Sheet/Range empty or access issue).');
+            faqDataMap.clear(); // Ensure map is empty if load fails
         }
     } catch (error) {
-        console.error('Error connecting to Google Sheets or fetching data:');
-        console.error('Error Message:', error.message);
-        if (error.details) console.error('Error Details:', error.details);
-        if (error.response && error.response.data && error.response.data.error) {
-            console.error('Google API Error:', JSON.stringify(error.response.data.error, null, 2));
-        }
+        console.error('Failed to load initial FAQ data from Google Sheets:', error.message);
+        faqDataMap.clear(); // Ensure map is empty if load fails
     }
 }
 
@@ -150,34 +146,46 @@ app.post('/chat', async (req, res) => {
 
     let aiResponse = 'Sorry, I encountered an error.'; // Default error response
     let openRouterModel = 'google/gemini-flash-1.5'; // Default model
+    let responseSource = 'NLU'; // Track where the response came from ('FAQ' or 'NLU')
 
-    try {
-        // Fetch conversation history if sessionId is present
-        const historicalMessages = await getConversationHistory(sessionId);
+    // Task 2.3/2.4: Check FAQ map first
+    const userMessageLower = message.toLowerCase().trim();
+    if (faqDataMap.has(userMessageLower)) {
+        aiResponse = faqDataMap.get(userMessageLower);
+        responseSource = 'FAQ';
+        console.log(`FAQ Hit for: "${message}". Using predefined answer.`);
+    } else {
+        // Only call NLU if no FAQ match
+        console.log(`FAQ Miss for: "${message}". Proceeding to NLU.`);
+        responseSource = 'NLU';
+        try {
+            // Fetch conversation history if sessionId is present
+            const historicalMessages = await getConversationHistory(sessionId);
 
-        // Prepare messages for OpenRouter
-        const messagesToOpenRouter = [
-            { role: 'system', content: 'You are a helpful AI assistant.' }, // Optional system prompt
-            ...historicalMessages, // Prepend history
-            { role: 'user', content: message },
-        ];
+            // Prepare messages for OpenRouter
+            const messagesToOpenRouter = [
+                { role: 'system', content: 'You are a helpful AI assistant.' }, // Optional system prompt
+                ...historicalMessages, // Prepend history
+                { role: 'user', content: message },
+            ];
 
-        // Task 1.3 - Integrate NLU (Gemini-2.5-flash via OpenRouter)
-        const completion = await openai.chat.completions.create({
-            model: openRouterModel, 
-            messages: messagesToOpenRouter,
-        });
+            // Task 1.3 - Integrate NLU (Gemini-2.5-flash via OpenRouter)
+            const completion = await openai.chat.completions.create({
+                model: openRouterModel, 
+                messages: messagesToOpenRouter,
+            });
 
-        if (completion.choices && completion.choices.length > 0 && completion.choices[0].message) {
-            aiResponse = completion.choices[0].message.content;
-        } else {
-            console.error('OpenRouter response format unexpected:', completion);
-            aiResponse = 'I received a response, but could not understand it.';
+            if (completion.choices && completion.choices.length > 0 && completion.choices[0].message) {
+                aiResponse = completion.choices[0].message.content;
+            } else {
+                console.error('OpenRouter response format unexpected:', completion);
+                aiResponse = 'I received a response, but could not understand it.';
+            }
+
+        } catch (error) {
+            console.error('Error calling OpenRouter:', error.response ? error.response.data : error.message);
+            // Keep the default error response
         }
-
-    } catch (error) {
-        console.error('Error calling OpenRouter:', error.response ? error.response.data : error.message);
-        // Keep the default error response
     }
 
     // Log to Supabase
@@ -190,7 +198,7 @@ app.post('/chat', async (req, res) => {
                     ai_response: aiResponse,
                     session_id: sessionId || null, // Use extracted sessionId here
                     platform: 'website',
-                    model_used: openRouterModel // Log the model used
+                    model_used: responseSource === 'FAQ' ? 'google_sheet_faq' : openRouterModel // Log 'FAQ' or the NLU model
                 }
             ])
             .select();
