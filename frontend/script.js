@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+function initializeChatWidget() {
     console.log('Chat widget script loaded and DOM ready.');
 
     // 1. Get DOM element references
@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.log('Using existing session ID:', sessionId);
     }
+
+    // Ensure initial scroll to bottom if needed (e.g., loading history)
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 
     // 5. Implement addMessageToUI function
     function addMessageToUI(message, sender) {
@@ -35,55 +38,48 @@ document.addEventListener('DOMContentLoaded', () => {
         messageElement.textContent = message;
         chatMessages.appendChild(messageElement);
 
-        // Scroll to the bottom
+        // Auto-scroll to the latest message
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // 4. Implement sendMessage function (with backend call)
-    async function sendMessage() { // Make the function async
+    // 6. Implement sendMessage function (handles user input and backend comms)
+    async function sendMessage() {
         const messageText = chatInput.value.trim();
+        if (!messageText) return; // Don't send empty messages
 
-        if (messageText) {
-            // Display user message
-            addMessageToUI(messageText, 'user');
+        // Display user message immediately
+        addMessageToUI(messageText, 'user');
+        chatInput.value = ''; // Clear input field
 
-            // Clear the input field immediately
-            chatInput.value = '';
+        // Show loading indicator
+        addMessageToUI('Thinking...', 'ai loading'); // Simple text loading indicator
 
-            // Optional: Show a simple loading indicator
-            addMessageToUI('Thinking...', 'ai loading'); // Use a temporary class for styling
-            const loadingIndicator = chatMessages.lastChild;
+        // Prepare data for backend
+        const requestData = {
+            message: messageText,
+            sessionId: sessionId
+        };
 
-            // Backend API call (Task 3.3)
-            const backendUrl = 'http://localhost:3001/chat'; // Ensure backend is running
+        // 7. Backend Communication (Fetch API)
+        try {
+            const response = await fetch('http://localhost:3001/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData),
+            });
 
-            try {
-                const response = await fetch(backendUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        message: messageText, 
-                        sessionId: sessionId 
-                    }),
-                });
+            // Remove loading indicator
+            const potentialLoadingIndicator = chatMessages.lastChild;
+            if (potentialLoadingIndicator && potentialLoadingIndicator.classList.contains('loading')) {
+                chatMessages.removeChild(potentialLoadingIndicator);
+            }
 
-                // Remove loading indicator
-                const potentialLoadingIndicator = chatMessages.lastChild;
-                if (potentialLoadingIndicator && potentialLoadingIndicator.classList.contains('loading')) {
-                    chatMessages.removeChild(potentialLoadingIndicator);
-                }
-
-                if (!response.ok) {
-                    // Handle HTTP errors (like 500 Internal Server Error)
-                    const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
-                    console.error('Backend Error Status:', response.status);
-                    console.error('Backend Error Data:', errorData);
-                    addMessageToUI(`Sorry, couldn't reach the AI. Error: ${response.status} ${response.statusText}`, 'ai error'); // Add specific error class
-                    return; // Stop processing
-                }
-
+            if (!response.ok) {
+                console.error('Backend error:', response.status, await response.text());
+                addMessageToUI(`Error: ${response.statusText || 'Failed to get response'}`, 'ai error');
+            } else {
                 const data = await response.json();
                 console.log('Backend Response:', data);
 
@@ -92,26 +88,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     addMessageToUI('Received an empty response from the AI.', 'ai error');
                 }
-
-            } catch (error) {
-                 // Remove loading indicator in case of network error
-                const potentialLoadingIndicatorOnError = chatMessages.lastChild;
-                if (potentialLoadingIndicatorOnError && potentialLoadingIndicatorOnError.classList.contains('loading')) {
-                    chatMessages.removeChild(potentialLoadingIndicatorOnError);
-                }
-                console.error('Error sending message to backend:', error);
-                addMessageToUI('Sorry, there was a problem connecting to the chat service.', 'ai error');
             }
-        } else {
-            console.log('Input is empty, not sending.');
+
+        } catch (error) {
+             // Remove loading indicator in case of network error
+            const potentialLoadingIndicatorOnError = chatMessages.lastChild;
+            if (potentialLoadingIndicatorOnError && potentialLoadingIndicatorOnError.classList.contains('loading')) {
+                chatMessages.removeChild(potentialLoadingIndicatorOnError);
+            }
+            console.error('Error sending message to backend:', error);
+            addMessageToUI('Sorry, there was a problem connecting to the chat service.', 'ai error');
         }
     }
 
-    // 3. Add event listener for send button/enter key
+    // 3. Add event listener for sending messages (button click)
     sendButton.addEventListener('click', sendMessage);
 
+    // 4. Add event listener for sending messages (Enter key)
     chatInput.addEventListener('keypress', (event) => {
-        // Check if the key pressed was 'Enter'
         if (event.key === 'Enter') {
             event.preventDefault(); // Prevent default form submission if input is inside a form
             sendMessage();
@@ -120,5 +114,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add a welcome message or initial prompt if desired
     addMessageToUI('Hello! How can I help you today?', 'ai');
-
-});
+}
