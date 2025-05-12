@@ -7,9 +7,21 @@ body {
     background-color: #f4f4f4;
 }
 
+:root {
+    /* Define customizable variables */
+    --chat-header-bg: #007bff;
+    --chat-header-text-color: white;
+    --chat-user-message-bg: #dcf8c6;
+    --chat-ai-message-bg: #eee;
+    --chat-send-button-bg: #007bff;
+    --chat-send-button-text-color: white;
+    --chat-widget-width: 350px;
+    --chat-widget-height: 500px;
+}
+
 #chat-widget {
-    width: 350px;
-    height: 500px;
+    width: var(--chat-widget-width);
+    height: var(--chat-widget-height);
     border: 1px solid #ccc;
     border-radius: 8px;
     display: flex;
@@ -20,8 +32,8 @@ body {
 }
 
 #chat-header {
-    background-color: #007bff;
-    color: white;
+    background-color: var(--chat-header-bg);
+    color: var(--chat-header-text-color);
     padding: 10px;
     font-weight: bold;
     text-align: center;
@@ -45,13 +57,13 @@ body {
 }
 
 .user-message {
-    background-color: #dcf8c6;
+    background-color: var(--chat-user-message-bg);
     align-self: flex-end;
     border-bottom-right-radius: 5px;
 }
 
 .ai-message {
-    background-color: #eee;
+    background-color: var(--chat-ai-message-bg);
     align-self: flex-start;
     border-bottom-left-radius: 5px;
 }
@@ -84,13 +96,15 @@ body {
 
 #send-button {
     padding: 8px 15px;
-    background-color: #007bff;
-    color: white;
+    background-color: var(--chat-send-button-bg);
+    color: var(--chat-send-button-text-color);
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
 
 #send-button:hover {
-    background-color: #0056b3;
+    /* Slightly darken the button on hover - using filter for simplicity */
+    /* Adjust brightness value as needed */
+    filter: brightness(90%); 
 }
